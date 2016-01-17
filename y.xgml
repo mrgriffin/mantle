@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!--
+  Provides something similar to the Y-combinator.
+  Used for defining recursive anonymous functions.
+
+  Example:
+    usereg
+    {
+      usereg !fact !n
+      ;n 2 lt { 1 } { ;n ;n 1 sub :fact mul } ifelse
+    } Y !fact
+    5 :fact % = 120
+-->
+<Library name="y-lib">
+<item id="_post-import" exec="1"><![CDATA[
+% TODO: Introduce an option to package-lib that lets you specify this directly in the "items".
+/Y /Func -> /Func def-fn*
+]]></item>
+<item id="Y" exec="1"><![CDATA[
+usereg !f
+{ f f exec } dup 1 ;f put !F
+;F 0 ;F put
+;F
+]]></item>
+</Library>

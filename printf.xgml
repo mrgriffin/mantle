@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<!--
+  Provides a way to print formatted text to stdout.
+  Always prints a newline after the output.
+
+  Example:
+    usereg {Martin} !name 1992 !year-of-birth
+    [
+      ;name
+      2012 ;year-of-birth sub
+      {England}
+    ] {Hello {~1} from {~3} -- you are (at least) {~2} years old} printf
+
+  Escape Sequences:
+  ; : ! . and % are illegal in the format specifier, instead use:
+    {~dot}   .
+    {~dots}  ...
+    {~excl}  !
+    {~colon} :
+    {~semi}  ;
+    {~perc}  %
+    {~nl}    newline
+  These require that your terminal handles ^H correctly (i.e. deletes the previous character).
+-->
+<Library name="printf-lib">
+<item id="_depends" exec="0"><![CDATA[
+"lib/short-circuit.xgml"
+"lib/switch.xgml"
+]]></item>
+<item id="printf" exec="1"><![CDATA[
+usereg !fmt !args
+% TODO: [...] x bsearch -> :I
+% [ /~1 /~2 ... /~n ] ;token bsearch
+{
+  usereg !array
+  ;array 0 get cvlit [
+    /~1  0   /~2  1   /~3  2   /~4  3   /~5  4
+    /~6  5   /~7  6   /~8  7   /~9  8   /~10 9
+    -1
+  ] switch
+} !placeholder-index
+
+;fmt {
+  !token
+  ;token type /Array eq {
+    ;token length 1 eq { ;token :placeholder-index -1 ne } and* {
+      % Arrays containing a placeholder are substituted for the corresponding argument.
+      ;args ;token :placeholder-index get (0,0) tokenformat
+    } {
+      % Escape sequences are printed with backspaces (^H) embedded to remove quotes.
+      % HINT: Abusing and*, we know the switch will default if passed a 0.
+      ;token length 0 gt { ;token 0 get } and* cvlit [
+        /~dots  {"..."} cvlit
+        /~dot   {"."} cvlit
+        /~excl  {"!"} cvlit
+        /~colon {":"} cvlit
+        /~semi  {";"} cvlit
+        /~perc  {"%"} cvlit
+        { ;token 1 array }
+      ] switch
+    } ifelse
+  } {
+    % Non-arrays are printed without change.
+    % TODO: Should we tokenformat each element of the array?
+    ;token
+  } ifelse
+} map flatten echo
+]]></item>
+</Library>

@@ -1,0 +1,25 @@
+<Library name="error-lib">
+<item id="catch-all" exec="1"><![CDATA[
+dict begin
+/_on-catch edef
+/_try edef
+{
+  {
+    _try
+  } {
+    /_error
+    throw
+  } catch-error
+} {
+  count 1 gt {
+    exch dup /_error eq {
+      2 pops
+    } {
+      exch
+    } ifelse
+  } if
+  _on-catch
+} catch
+end
+]]></item>
+</Library>

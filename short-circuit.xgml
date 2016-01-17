@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+  Provides a short-circuiting and operator.
+  Does not evaluate the second argument unless the first is true.
+
+  Example:
+    % Plain and does not work as it always tries to take the length of ;value.
+    ;value /Array type eq ;value length 0 gt and
+    % Short-circuiting and* works.
+    ;value /Array type eq { ;value length 0 gt } and*
+
+  TODO:
+  Expand the scope to all logical functions and include index-of.
+-->
+<Library name="short-circuit-lib">
+<item id="and*" exec="1"><![CDATA[
+exch dup { pop exec } if
+]]></item>
+</Library>

@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+  Provides a switch statement similar to those found in C-like languages.
+  Compares a control variable to a list of patterns and executes the body of the first matching pattern.
+
+  Syntax:
+    <ctrl> [
+      ( <pattern> <body> )*
+      <else-body>?
+    ] switch
+  pattern may be either a non-array to compare with eq or an array (control -> b:I) to execute.
+  body and else-body are the functions to execute if that pattern (or no pattern) matched.
+
+  Example:
+    ;n [
+      1 { 1 }
+      { 2 le } { 2 }
+      { "else" }
+    ]
+  n = 0 -> 2
+  n = 1 -> 1
+  n = 2 -> 2
+  n = 3 -> "else"
+-->
+<Library name="switch-lib">
+<item id="switch" exec="1"><![CDATA[
+dict begin
+cvlit /_patterns edef
+/_control edef
+0 /_matched edef
+0 2 _patterns length 1 sub {
+  /_i edef
+  _patterns _i get type /_pattern-type edef
+  _patterns _i get /_pattern edef
+  _patterns _i 1 add get /_body edef
+  _pattern-type /Array ne {
+    _control _pattern eq _matched not and { _body 1 /_matched edef } if
+  } {
+    _control _pattern _matched not and { _body 1 /_matched edef } if
+  } ifelse
+} forx
+_matched not _patterns length 2 mod 1 eq and { _patterns dup length 1 sub get exec } if
+end
+]]></item>
+</Library>

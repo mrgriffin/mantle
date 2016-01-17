@@ -1,0 +1,236 @@
+<?xml version="1.0"?>
+<!--
+  Provides a way to define type-checked functions.
+  Compares the types of the values on the stack before and after execution to ensure correct behavior.
+
+  Syntax:
+    /Name /ArgType0 /ArgType1 ... /ArgTypeN -> /RetType0 /RetType1 ... /RetTypeM {
+    } def-fn
+
+  Example:
+    /plus /Number /Number -> /Number {
+      add
+    } def-fn
+    1 1 plus -> 2
+    1.0 1.5 plus -> 2.5
+    1 "1" plus -> #Error
+
+  Existing Functions:
+  To give an existing function type checking use def-fn*.
+    /plus { add } def
+    /plus /Number /Number -> /Number def-fn*
+    1 "1" plus -> #Error
+  This redefinition should occur in the same scope as the original definition.
+
+  Types:
+  /Any /Array  /Bool   /Dict   /Edge /EulerMacro /Float  /Func
+  /Int /IOType /Name   /Number /P2   /P3         /String /xml-node
+
+  TODO:
+  Get bind working so that internal functions need not be exposed.
+  Allow [/Int] as an array of ints [] as an array of /Any etc.
+  Create a type for /Multiplyable?
+  def-ov to define an overloaded function (future def-fns overload instead of overwrite).
+  Clear the stack before running body to make sure nothing screwy happens? -- also allows for sane catches, we can "undo" for the catch handler
+  Regex-style + and * operators for variadic functions.
+  Should def-fn avoid usereg contexts so that the function can (potentially) access the outer usereg scope?
+  Union type (e.g. /Int | /Float)
+-->
+<Library name="def-fn-lib">
+<item id="_depends" exec="0"><![CDATA[
+"lib/debug.xgml"
+"lib/error.xgml"
+"lib/printf.xgml"
+"lib/switch.xgml"
+]]></item>
+<item id="def-fn" exec="1"><![CDATA[
+% Defines a type-checked function.
+% name arg-type-0 ... arg-type-N /-> return-type-0 ... return-type-M body ->
+usereg !body
+parse-fn-decl !name !argument-types !return-types
+;name ;argument-types ;return-types ;body  make-fn !fn
+
+;name ;body def
+]]></item>
+<item id="def-fn*" exec="1"><![CDATA[
+% Defines the signature of an already defined function.
+% name arg-type-0 ... arg-type-N /-> return-type-0 ... return-type-M ->
+usereg
+parse-fn-decl !name !argument-types !return-types
+;name ;argument-types ;return-types ;name load make-fn !fn
+
+;name ;fn def
+]]></item>
+<item id="->" exec="1"><![CDATA[
+/->
+]]></item>
+<item id="is-type" exec="1"><![CDATA[
+% Returns 1 if name is a type; 0 otherwise.
+% name:/Name -> 0|1
+[
+  /Any        1
+  /Array      1
+  /Bool       1
+  /Dict       1
+  /Edge       1
+  /EulerMacro 1
+  /Float      1
+  /Func       1
+  /Int        1
+  /IOType     1
+  /Name       1
+  /Number     1
+  /P2         1
+  /P3         1
+  /String     1
+  /xml-node   1
+  { 0 }
+] switch
+]]></item>
+<item id="has-type" exec="1"><![CDATA[
+% Returns 1 if value is of type type; 0 otherwise.
+% value type -> 0|1
+usereg !type !value
+;type [
+  /Any    { 1 }
+  /Bool   { ;value type /Int eq ;value 0 eq ;value 1 eq or and }
+  /Func   { ;value type /Array eq }
+  /Number { ;value type /Int eq ;value type /Float eq or }
+  { ;value type ;type eq }
+] switch
+]]></item>
+<item id="mismatch-index" exec="1"><![CDATA[
+% Returns the index of the first type mismatch  or -1 if all the types match.
+% value0 value1 ... valueN [ type0 type1 ... typeN ] -> index
+% TODO: Rename.
+usereg !types
+;types length !types-count
+
+0 !index
+0 !fail
+;types-count array ;types {
+  has-type not { 1 !fail exit } if
+  ;index 1 add !index
+} twoforall
+;fail { ;index } { -1 } ifelse
+]]></item>
+<item id="parse-fn-decl" exec="1"><![CDATA[
+% Returns the name  argument types and return types of a function declaration.
+% name type... /-> type... -> return-types argument-types name
+usereg
+[] !return-types
+{
+  count 0 eq {
+    [ ;return-types
+    ] {ERROR function declaration without -> ( ? -> {~1})} printf
+    throw
+  } if
+  !type
+  ;type /-> eq { exit } if
+  % TODO: Can we get the function name for a better error?
+  ;type is-type not {
+    [ ;type
+      ;return-types
+    ] {ERROR {~1} is not a type ( ? -> {~dots} {~2})} printf
+    throw
+  } if
+  ;return-types ;type append
+} loop
+;return-types reverse !return-types
+
+[] !argument-types
+{
+  count 0 eq {
+    [ ;argument-types
+      ;return-types
+    ] {ERROR function declaration ({~1} -> {~2}) without name} printf
+    throw
+  } if
+  !type
+  ;type is-type not { ;type !name exit } if
+  ;argument-types ;type append
+} loop
+;argument-types reverse !argument-types
+
+% Invalid function name.
+;name type /Name ne {
+  [ ;name
+    ;argument-types
+    ;return-types
+  ] {ERROR {~1} is not a valid function name ({~2} -> {~3})} printf
+  throw
+} if
+
+;return-types ;argument-types ;name
+]]></item>
+<item id="make-fn" exec="1"><![CDATA[
+% Returns a function that executes body  checking the argument and return types.
+% body argument-types return-types -> fn
+% TODO: Avoid usereg in the inner function?
+usereg !body !return-types !argument-types !name
+{
+  usereg /N !name /A !argument-types /R !return-types /B !body
+  count !stack-size
+  ;argument-types length !arguments-size
+  ;return-types length !returns-size
+  {
+    count dup !count ;arguments-size lt {
+      [ ;arguments-size
+        ;count
+      ] {ERROR too few arguments ( expected {~1} got {~2})} printf
+      count stacktrace
+      throw
+    } if
+    ;argument-types length copy ;argument-types mismatch-index dup !index -1 ne {
+      [ ;argument-types ;index get
+        ;arguments-size ;index sub 1 add index type
+        ;index 1 add
+      ] {ERROR type mismatch ( expected {~1} got {~2} as argument {~3})} printf
+      count stacktrace
+      throw
+    } if
+    :body
+    count dup !count ;returns-size lt {
+      [ ;returns-size
+        ;count
+      ] {ERROR too few values returned ( expected {~1} got {~2})} printf
+      count stacktrace
+      throw
+    } if
+    ;return-types length copy ;return-types mismatch-index dup !index -1 ne {
+      [ ;return-types ;index get
+        ;returns-size ;index sub 1 add index type
+        ;index 1 add
+      ] {ERROR type mismatch ( expected {~1} got {~2} as return value {~3})} printf
+      count stacktrace
+      throw
+    } if
+    % TODO: DRY principle -- merge this and "too few values returned".
+    count dup !count ;stack-size sub ;returns-size ;arguments-size sub ne {
+      [ ;returns-size
+        ;count
+      ] {ERROR too many values returned ( expected {~1} got {~2})} printf
+      count stacktrace
+      throw
+    } if
+  } {
+    !e
+    % TODO: Come up with a better way to detect the initial exception.
+    ;e /NoError ne {
+      [ ;e
+      ] {ERROR {~1}} printf
+    } if
+    [ ;name
+      ;argument-types
+      ;return-types
+    ] {  in {~1} {~2} -> {~3}} printf
+    throw
+  } catch-all
+} copy cvx !fn
+;fn 1 ;name put
+;fn 3 ;argument-types put
+;fn 5 ;return-types put
+;fn 7 ;body put
+;fn
+]]></item>
+</Library>

@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<!--
+  Provides an import statement that brings a library into the current scope.
+  Packages should only be imported in the topmost scope -- i.e. the first few lines of the main function.
+
+  Example:
+    % Import package-lib.
+    "lib/package.xgml" dictfromxgml pop /initialize cvdictpath exec
+    % Import library-name.
+    "library-name.xgml" import
+
+  Developers:
+  The _post-import function is called once all the names are in scope, if it exists.
+  The _test function contains the unit test for the library, if it exists.
+  The _depends array contains all the libraries that the library depends on, if it exists.
+  Functions whose names start with an underscore (_) followed by a lowercase letter are reserved.
+
+  TODO:
+  Take an optional array of names to import.
+  Call _test if strict debugging is on.
+  Fix cvname so that we can use a dictionary as a cache. Just use the library name!
+  Introduce a _pre-import function?
+  Wrap functions in a function that exposes the private members?
+  Instead of importing into the current scope we could do a dict-stack exch?
+  Have "static import" pull into current scope and regular import create a dict in scope.
+  Create the import function on the fly so that it does not need to introduce scope and will work within scopes.
+    But then how do we know if we double-imported package-lib?
+  
+  "lib-path" [ name1 name2 ] import/import*
+-->
+<Library name="package-lib">
+<item id="initialize" exec="1"><![CDATA[
+currentdict /_imports known not {
+  /_imports where {
+    pop
+    /_imports _imports copy def
+  } {
+    /_imports [] def
+  } ifelse
+} if
+
+/import {
+  usereg !filename
+  0 !imported
+  _imports {
+    ;filename eq { 1 !imported } if
+  } forall
+  ;imported not {
+    { ;filename dictfromxgml !name !dict } {
+      pop
+      {ERROR could not import /FILENAME} dup 4 ;filename put echo
+      throw
+    } catch-error
+
+    % TODO: Don't import reserved names.
+    ;dict keys ;dict values {
+      def
+    } twoforall
+
+    % TODO: Detect circular dependencies?
+    ;dict /_depends known {
+      _depends !deps
+      currentdict /_depends undef
+      ;deps {
+        import
+      } forall
+    } if
+
+    _imports ;filename append
+
+    ;dict /_post-import known {
+      _post-import
+      currentdict /_post-import undef
+    } if
+
+    % TODO: Wrap the _test execution in a new dictionary?
+    % TODO: Provide a unit test framework that calls a number of functions in their own clean environment.
+    ;dict /_test known {
+      currentdict /_test undef
+    } if
+  } if
+} def
+]]></item>
+</Library>

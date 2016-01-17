@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!--
+  Provides debugging facilities.
+
+  Assert:
+  Throws an exception if the parameter evaluates to 0.
+    Example:
+      0 1 eq assert % Throws with message "0".
+      1 1 eq assert
+      { 0 1 eq } assert % Throws with message "{ 0 1 eq }".
+
+  TODO:
+  Add an optional message parameter to assert descibing the check.
+  Document stacktrace.
+-->
+<Library name="debug-lib">
+<item id="_depends" exec="0"><![CDATA[
+"lib/printf.xgml"
+]]></item>
+<item id="assert" exec="1"><![CDATA[
+dup exec 0 eq {
+  [ 1 index
+  ] {ERROR assertion failed ({~1})} printf
+  throw
+} if
+]]></item>
+<item id="stacktrace" exec="1"><![CDATA[
+usereg !n count !c
+;n ;c gt { ;c !n } if
+[] {STACKTRACE} printf
+0 !i
+;n copy ;n {
+  !v
+  [ ;i
+    ;v
+  ] {{~1}) {~2}} printf
+  ;i 1 add !i
+} repeat
+]]></item>
+</Library>
